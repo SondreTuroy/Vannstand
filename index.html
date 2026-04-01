@@ -313,17 +313,27 @@ function classify(v, mean) {
   return 'normal';
 }
 
-async function fetchOne(s) {
+async function fetchObs(stationId, parameter, resolution) {
   const headers = { 'X-API-Key': key, 'accept': 'application/json' };
-  const [qRes, hRes] = await Promise.all([
-    fetch(`${API}?StationId=${s.id}&Parameter=1001&ResolutionTime=0`, { headers }),
-    fetch(`${API}?StationId=${s.id}&Parameter=1000&ResolutionTime=0`, { headers }),
-  ]);
-  const qJson = qRes.ok ? await qRes.json() : null;
-  const hJson = hRes.ok ? await hRes.json() : null;
+  const res = await fetch(`${API}?StationId=${stationId}&Parameter=${parameter}&ResolutionTime=${resolution}`, { headers });
+  if (!res.ok) return null;
+  const json = await res.json();
+  return json?.data?.[0] ?? null;
+}
 
-  const qd = qJson?.data?.[0];
-  const hd = hJson?.data?.[0];
+async function fetchOne(s) {
+  // Try discharge (1001) at instantaneous, hourly, then daily resolution
+  // Try stage (1000) at instantaneous as fallback
+  const [q0, q60, q1440, h0] = await Promise.all([
+    fetchObs(s.id, 1001, 0),
+    fetchObs(s.id, 1001, 60),
+    fetchObs(s.id, 1001, 1440),
+    fetchObs(s.id, 1000, 0),
+  ]);
+
+  // Pick best discharge source
+  const qd = [q0, q60, q1440].find(d => d?.observations?.length);
+  const hd = h0;
 
   let value = null, unit = 'm³/s', time = null, mean = null, status = 'unknown';
 
