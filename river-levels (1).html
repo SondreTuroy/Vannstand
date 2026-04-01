@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rivers">
+<meta name="theme-color" content="#0a0f1e">
+<title>River Levels</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0f1e;
+    --surface: #111827;
+    --surface2: #1a2236;
+    --border: rgba(255,255,255,0.07);
+    --text: #f0f4ff;
+    --muted: rgba(240,244,255,0.45);
+    --faint: rgba(240,244,255,0.12);
+    --blue: #4a9eff;
+    --green: #3ecf8e;
+    --amber: #f59e0b;
+    --red: #f87171;
+    --mono: 'DM Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    overscroll-behavior: none;
+  }
+
+  .shell {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: calc(var(--safe-top) + 20px) 18px calc(var(--safe-bottom) + 24px);
+    min-height: 100dvh;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 24px;
+  }
+  .header-left h1 {
+    font-size: 26px;
+    font-weight: 500;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+  .header-left .sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+    font-family: var(--mono);
+  }
+  .refresh-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .refresh-btn:active { transform: scale(0.92); }
+  .refresh-btn.spinning { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* API key screen */
+  .key-screen {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .key-screen h2 { font-size: 15px; font-weight: 500; margin-bottom: 6px; }
+  .key-screen p { font-size: 13px; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+  .key-input-row { display: flex; gap: 8px; }
+  .key-input-row input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 10px 12px;
+    outline: none;
+  }
+  .key-input-row input:focus { border-color: var(--blue); }
+  .key-input-row input::placeholder { color: var(--muted); }
+  .go-btn {
+    background: var(--blue);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 10px 18px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+  .go-btn:active { opacity: 0.8; }
+  .key-link {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--blue);
+    text-decoration: none;
+  }
+  .err { font-size: 12px; color: var(--red); margin-top: 8px; font-family: var(--mono); }
+
+  /* Summary pills */
+  .summary { display: flex; gap: 8px; margin-bottom: 18px; }
+  .pill {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+  .pill-label { font-size: 11px; color: var(--muted); margin-bottom: 3px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.04em; }
+  .pill-value { font-size: 22px; font-weight: 500; font-family: var(--mono); }
+  .pill-value.red { color: var(--red); }
+  .pill-value.amber { color: var(--amber); }
+
+  /* Filters */
+  .filters { display: flex; gap: 6px; margin-bottom: 18px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .filters::-webkit-scrollbar { display: none; }
+  .filter-chip {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: var(--sans);
+  }
+  .filter-chip.active {
+    background: var(--blue);
+    color: #fff;
+    border-color: var(--blue);
+  }
+
+  /* River cards */
+  .river-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 10px;
+    transition: border-color 0.2s;
+  }
+  .river-card.flood { border-color: rgba(248,113,113,0.3); }
+  .river-card.elevated { border-color: rgba(245,158,11,0.25); }
+
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .card-name { font-size: 17px; font-weight: 500; letter-spacing: -0.2px; }
+  .card-station { font-size: 11px; color: var(--muted); margin-top: 3px; font-family: var(--mono); }
+  .card-right { text-align: right; }
+  .card-value { font-size: 28px; font-weight: 500; font-family: var(--mono); letter-spacing: -1px; }
+  .card-unit { font-size: 12px; color: var(--muted); margin-left: 2px; font-family: var(--mono); }
+  .card-badge {
+    display: inline-block;
+    margin-top: 5px;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .badge-normal  { background: rgba(62,207,142,0.12); color: var(--green); }
+  .badge-elevated{ background: rgba(245,158,11,0.12); color: var(--amber); }
+  .badge-flood   { background: rgba(248,113,113,0.12); color: var(--red); }
+  .badge-low     { background: rgba(74,158,255,0.12); color: var(--blue); }
+  .badge-unknown { background: var(--faint); color: var(--muted); }
+
+  .card-bar { margin-top: 14px; }
+  .bar-track { height: 3px; border-radius: 2px; background: var(--faint); overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+  .bar-labels { display: flex; justify-content: space-between; margin-top: 5px; }
+  .bar-label { font-size: 10px; color: var(--muted); font-family: var(--mono); }
+
+  .card-time { font-size: 11px; color: var(--muted); margin-top: 10px; font-family: var(--mono); }
+
+  /* Skeleton */
+  .skeleton {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 10px;
+  }
+  .skel-line {
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--faint) 50%, var(--surface2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: 4px;
+    height: 14px;
+    margin-bottom: 8px;
+  }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  .empty { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="header">
+    <div class="header-left">
+      <h1>River levels</h1>
+      <div class="sub" id="updated-label">NVE live data</div>
+    </div>
+    <button class="refresh-btn" id="refresh-btn" onclick="refresh()" title="Refresh" style="display:none;">↻</button>
+  </div>
+
+  <!-- API key entry -->
+  <div class="key-screen" id="key-screen">
+    <h2>Connect to NVE</h2>
+    <p>A free API key is needed to fetch live data from NVE's hydrological database.</p>
+    <div class="key-input-row">
+      <input type="password" id="key-input" placeholder="Paste API key" autocomplete="off" />
+      <button class="go-btn" onclick="startLoad()">Load</button>
+    </div>
+    <a class="key-link" href="https://hydapi.nve.no/Users" target="_blank">Get a free key at hydapi.nve.no ↗</a>
+    <div class="err" id="key-err"></div>
+  </div>
+
+  <!-- Summary -->
+  <div id="summary" style="display:none;">
+    <div class="summary">
+      <div class="pill">
+        <div class="pill-label">Stations</div>
+        <div class="pill-value">6</div>
+      </div>
+      <div class="pill">
+        <div class="pill-label">Flood</div>
+        <div class="pill-value red" id="s-flood">—</div>
+      </div>
+      <div class="pill">
+        <div class="pill-label">Elevated</div>
+        <div class="pill-value amber" id="s-elev">—</div>
+      </div>
+    </div>
+    <div class="filters">
+      <button class="filter-chip active" onclick="setFilter('all',this)">All</button>
+      <button class="filter-chip" onclick="setFilter('flood',this)">Flood</button>
+      <button class="filter-chip" onclick="setFilter('elevated',this)">Elevated</button>
+      <button class="filter-chip" onclick="setFilter('normal',this)">Normal</button>
+      <button class="filter-chip" onclick="setFilter('low',this)">Low</button>
+    </div>
+  </div>
+
+  <div id="river-list"></div>
+</div>
+
+<script>
+const STATIONS = [
+  { name: 'Nidelva',  id: '123.90.0', label: 'Nedre Leirfossen' },
+  { name: 'Gaula',   id: '122.29.0', label: 'Melhus bru' },
+  { name: 'Sokna',   id: '122.30.0', label: 'ndf. Hauka' },
+  { name: 'Sjoa',    id: '2.142.0',  label: 'Sjoa' },
+  { name: 'Garberg', id: '123.31.0', label: 'Kjeldstad' },
+  { name: 'Sona',    id: '124.15.0', label: 'Sona' },
+];
+
+const API = 'https://hydapi.nve.no/api/v1/Observations';
+let key = localStorage.getItem('nve_key') || '';
+let data = [];
+let filter = 'all';
+
+function fillCol(s) {
+  return { normal:'#3ecf8e', elevated:'#f59e0b', flood:'#f87171', low:'#4a9eff', unknown:'rgba(240,244,255,0.3)' }[s] || '#888';
+}
+function badgeCls(s) {
+  return { normal:'badge-normal', elevated:'badge-elevated', flood:'badge-flood', low:'badge-low', unknown:'badge-unknown' }[s] || 'badge-unknown';
+}
+function badgeLbl(s) {
+  return { normal:'Normal', elevated:'Elevated', flood:'Flood alert', low:'Low', unknown:'No data' }[s] || '—';
+}
+
+function classify(v, mean) {
+  if (v === null || mean === null) return 'unknown';
+  const r = v / mean;
+  if (r > 3) return 'flood';
+  if (r > 1.5) return 'elevated';
+  if (r < 0.3) return 'low';
+  return 'normal';
+}
+
+async function fetchObs(stationId, parameter, resolution) {
+  const headers = { 'X-API-Key': key, 'accept': 'application/json' };
+  const res = await fetch(`${API}?StationId=${stationId}&Parameter=${parameter}&ResolutionTime=${resolution}`, { headers });
+  if (!res.ok) return null;
+  const json = await res.json();
+  return json?.data?.[0] ?? null;
+}
+
+async function fetchOne(s) {
+  // Try discharge (1001) at instantaneous, hourly, then daily resolution
+  // Try stage (1000) at instantaneous as fallback
+  const [q0, q60, q1440, h0] = await Promise.all([
+    fetchObs(s.id, 1001, 0),
+    fetchObs(s.id, 1001, 60),
+    fetchObs(s.id, 1001, 1440),
+    fetchObs(s.id, 1000, 0),
+  ]);
+
+  // Pick best discharge source
+  const qd = [q0, q60, q1440].find(d => d?.observations?.length);
+  const hd = h0;
+
+  let value = null, unit = 'm³/s', time = null, mean = null, status = 'unknown';
+
+  if (qd?.observations?.length) {
+    value = qd.observations[0].value;
+    time  = qd.observations[0].time;
+    unit  = 'm³/s';
+    mean  = qd.meanAnnualDischarge ?? null;
+    status = mean ? classify(value, mean) : 'normal';
+  } else if (hd?.observations?.length) {
+    value = hd.observations[0].value;
+    time  = hd.observations[0].time;
+    unit  = 'm';
+    status = 'normal';
+  }
+
+  return { ...s, value, unit, time, mean, status };
+}
+
+function fmtVal(v, unit) {
+  if (v === null) return '—';
+  if (unit === 'm³/s') return v < 10 ? v.toFixed(1) : Math.round(v).toString();
+  return v.toFixed(2);
+}
+
+function fmtTime(t) {
+  if (!t) return '';
+  const d = new Date(t);
+  return d.toLocaleString('no-NO', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) + ' UTC';
+}
+
+function barPct(v, mean, unit) {
+  if (v === null) return 0;
+  if (unit === 'm³/s' && mean) return Math.min(100, (v / (mean * 4)) * 100);
+  return 50;
+}
+
+function renderSkeletons() {
+  document.getElementById('river-list').innerHTML = STATIONS.map(() => `
+    <div class="skeleton">
+      <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+        <div><div class="skel-line" style="width:110px;"></div><div class="skel-line" style="width:70px;height:10px;"></div></div>
+        <div class="skel-line" style="width:80px;height:32px;"></div>
+      </div>
+      <div class="skel-line" style="width:100%;height:3px;margin-bottom:4px;"></div>
+    </div>`).join('');
+}
+
+function render() {
+  const filtered = filter === 'all' ? data : data.filter(r => r.status === filter);
+  if (!filtered.length) {
+    document.getElementById('river-list').innerHTML = '<div class="empty">No rivers match this filter.</div>';
+    return;
+  }
+  document.getElementById('river-list').innerHTML = filtered.map(r => {
+    const col = fillCol(r.status);
+    const val = fmtVal(r.value, r.unit);
+    const pct = barPct(r.value, r.mean, r.unit).toFixed(1);
+    const refLbl = r.unit === 'm³/s' && r.mean ? `mean ${Math.round(r.mean)}` : '';
+    return `
+    <div class="river-card ${r.status}">
+      <div class="card-top">
+        <div>
+          <div class="card-name">${r.name}</div>
+          <div class="card-station">${r.label} · ${r.id}</div>
+        </div>
+        <div class="card-right">
+          <div><span class="card-value" style="color:${col};">${val}</span><span class="card-unit">${r.unit}</span></div>
+          <span class="card-badge ${badgeCls(r.status)}">${badgeLbl(r.status)}</span>
+        </div>
+      </div>
+      ${r.value !== null ? `
+      <div class="card-bar">
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col};"></div></div>
+        <div class="bar-labels">
+          <span class="bar-label">0</span>
+          <span class="bar-label" style="color:${col};">${val} ${r.unit}</span>
+          ${refLbl ? `<span class="bar-label">${refLbl} m³/s</span>` : ''}
+        </div>
+      </div>` : ''}
+      <div class="card-time">${r.time ? fmtTime(r.time) : 'No observation'}</div>
+    </div>`;
+  }).join('');
+}
+
+async function loadData() {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning');
+  renderSkeletons();
+  try {
+    data = await Promise.all(STATIONS.map(fetchOne));
+  } catch(e) {
+    document.getElementById('river-list').innerHTML = '<div class="empty">Connection error. Check your API key.</div>';
+    btn.classList.remove('spinning');
+    return;
+  }
+  const anyData = data.some(r => r.value !== null);
+  if (!anyData) {
+    document.getElementById('river-list').innerHTML = '<div class="empty">No data returned — check your API key.</div>';
+    btn.classList.remove('spinning');
+    return;
+  }
+  document.getElementById('key-screen').style.display = 'none';
+  document.getElementById('summary').style.display = '';
+  document.getElementById('refresh-btn').style.display = '';
+  document.getElementById('s-flood').textContent = data.filter(r => r.status === 'flood').length;
+  document.getElementById('s-elev').textContent = data.filter(r => r.status === 'elevated').length;
+  document.getElementById('updated-label').textContent =
+    'Updated ' + new Date().toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit' });
+  btn.classList.remove('spinning');
+  render();
+}
+
+function startLoad() {
+  key = document.getElementById('key-input').value.trim();
+  if (!key) { document.getElementById('key-err').textContent = 'Please enter an API key.'; return; }
+  localStorage.setItem('nve_key', key);
+  document.getElementById('key-err').textContent = '';
+  loadData();
+}
+
+function refresh() { loadData(); }
+
+function setFilter(f, btn) {
+  filter = f;
+  document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+// Auto-load if key stored
+if (key) {
+  document.getElementById('key-input').value = key;
+  loadData();
+}
+</script>
+</body>
+</html>
