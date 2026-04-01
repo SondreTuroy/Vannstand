@@ -206,6 +206,10 @@
   .bar-label { font-size: 10px; color: var(--muted); font-family: var(--mono); }
 
   .card-time { font-size: 11px; color: var(--muted); margin-top: 10px; font-family: var(--mono); }
+  .card-secondary { font-size: 12px; color: var(--muted); margin-top: 8px; font-family: var(--mono); }
+  .sec-age { font-size: 10px; opacity: 0.6; }
+  .card-secondary { font-size: 12px; color: var(--muted); margin-top: 8px; font-family: var(--mono); }
+  .sec-age { font-size: 10px; opacity: 0.6; }
 
   /* Skeleton */
   .skeleton {
@@ -322,35 +326,47 @@ async function fetchObs(stationId, parameter, resolution) {
 }
 
 async function fetchOne(s) {
-  // Try discharge (1001) at instantaneous, hourly, then daily resolution
-  // Try stage (1000) at instantaneous as fallback
-  const [q0, q60, q1440, h0] = await Promise.all([
+  const [q0, q60, q1440, h0, h60, h1440] = await Promise.all([
     fetchObs(s.id, 1001, 0),
     fetchObs(s.id, 1001, 60),
     fetchObs(s.id, 1001, 1440),
     fetchObs(s.id, 1000, 0),
+    fetchObs(s.id, 1000, 60),
+    fetchObs(s.id, 1000, 1440),
   ]);
 
-  // Pick best discharge source
   const qd = [q0, q60, q1440].find(d => d?.observations?.length);
-  const hd = h0;
+  const hd = [h0, h60, h1440].find(d => d?.observations?.length);
 
-  let value = null, unit = 'm³/s', time = null, mean = null, status = 'unknown';
+  let value = null, unit = 'm', time = null, mean = null, status = 'unknown';
+  let discharge = null, dischargeTime = null;
 
+  // Always grab discharge if available (even if old)
   if (qd?.observations?.length) {
-    value = qd.observations[0].value;
-    time  = qd.observations[0].time;
+    discharge = qd.observations[0].value;
+    dischargeTime = qd.observations[0].time;
+    mean = qd.meanAnnualDischarge ?? null;
+  }
+
+  // Primary display: discharge if live (inst/hourly), else water level
+  if ((q0?.observations?.length || q60?.observations?.length)) {
+    value = discharge;
+    time  = dischargeTime;
     unit  = 'm³/s';
-    mean  = qd.meanAnnualDischarge ?? null;
     status = mean ? classify(value, mean) : 'normal';
   } else if (hd?.observations?.length) {
     value = hd.observations[0].value;
     time  = hd.observations[0].time;
     unit  = 'm';
     status = 'normal';
+  } else if (qd?.observations?.length) {
+    value = discharge;
+    time  = dischargeTime;
+    unit  = 'm³/s';
+    status = mean ? classify(value, mean) : 'normal';
   }
 
-  return { ...s, value, unit, time, mean, status };
+  return { ...s, value, unit, time, mean, status, discharge, dischargeTime };
 }
 
 function fmtVal(v, unit) {
@@ -393,6 +409,9 @@ function render() {
     const val = fmtVal(r.value, r.unit);
     const pct = barPct(r.value, r.mean, r.unit).toFixed(1);
     const refLbl = r.unit === 'm³/s' && r.mean ? `mean ${Math.round(r.mean)}` : '';
+    // Secondary line: show discharge if primary is water level, or water level if primary is discharge
+    const hasSecondaryQ = r.unit === 'm' && r.discharge !== null;
+    const secQStr = hasSecondaryQ ? `<div class="card-secondary">≈ ${fmtVal(r.discharge, 'm³/s')} m³/s <span class="sec-age">(${fmtTime(r.dischargeTime)})</span></div>` : '';
     return `
     <div class="river-card ${r.status}">
       <div class="card-top">
@@ -414,6 +433,7 @@ function render() {
           ${refLbl ? `<span class="bar-label">${refLbl} m³/s</span>` : ''}
         </div>
       </div>` : ''}
+      ${secQStr}
       <div class="card-time">${r.time ? fmtTime(r.time) : 'No observation'}</div>
     </div>`;
   }).join('');
